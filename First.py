@@ -21,6 +21,48 @@ def draw_axes():
 
     glEnd()
 
+
+def draw_cube():
+    glBegin(GL_LINES)
+    glColor3f(10, 10, 0)
+    glVertex3f(0, 0, 0)
+    glVertex3f(0, 0, 10)
+
+    glVertex3f(0, 0, 0)
+    glVertex3f(0, 10, 0)
+
+    glVertex3f(0, 0, 0)
+    glVertex3f(10, 0, 0)
+
+    glVertex3f(0, 0, 10)
+    glVertex3f(0, 10, 10)
+
+    glVertex3f(0, 10, 0)
+    glVertex3f(0, 10, 10)
+
+    glVertex3f(10, 0, 0)
+    glVertex3f(10, 10, 0)
+
+    glVertex3f(10, 10, 0)
+    glVertex3f(10, 10, 10)
+
+    glVertex3f(0, 10, 10)
+    glVertex3f(10, 10, 10)
+
+    glVertex3f(0, 10, 0)
+    glVertex3f(10, 10, 0)
+
+    glVertex3f(0, 0, 10)
+    glVertex3f(10, 0, 10)
+
+    glVertex3f(10, 0, 10)
+    glVertex3f(10, 10, 10)
+
+    glVertex3f(10, 0, 0)
+    glVertex3f(10, 0, 10)
+    
+    glEnd()
+
 def init_gl(width, height):
     glEnable(GL_DEPTH_TEST)
     glMatrixMode(GL_PROJECTION)
@@ -49,6 +91,7 @@ def main():
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glClearColor(0.1, 0.1, 0.15, 1)
 
+        draw_cube()
         draw_axes()
         pygame.display.flip()
         clock.tick(60)
