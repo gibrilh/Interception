@@ -21,10 +21,9 @@ def draw_axes():
 
     glEnd()
 
-
 def draw_cube():
     glBegin(GL_LINES)
-    glColor3f(10, 10, 0)
+    glColor3f(0, 1, 1)
     glVertex3f(0, 0, 0)
     glVertex3f(0, 0, 10)
 
@@ -63,6 +62,25 @@ def draw_cube():
     
     glEnd()
 
+class Plane:
+    def __init__(self):
+        self.position = np.array([0,0,0], dtype=float)
+        self.velocity = np.array([0,0,0], dtype=float)
+        self.acceleration = np.array([1,0,0], dtype=float)
+    
+    def update(self, dt):
+        new_velocity = self.velocity + self.acceleration * dt
+        new_position = self.position + new_velocity * dt 
+        
+        self.velocity = new_velocity 
+        self.position = new_position
+    
+    def draw(self):
+        glPushMatrix()
+        glTranslatef(*self.position)
+        draw_cube()
+        glPopMatrix()
+
 def init_gl(width, height):
     glEnable(GL_DEPTH_TEST)
     glMatrixMode(GL_PROJECTION)
@@ -82,18 +100,24 @@ def main():
 
     init_gl(800, 600)
 
+    plane = Plane()
+
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
+    
+        dt_ms = clock.tick(60)
+        dt = dt_ms / 1000
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glClearColor(0.1, 0.1, 0.15, 1)
 
-        draw_cube()
         draw_axes()
+
+        plane.update(dt)
+        plane.draw()
         pygame.display.flip()
-        clock.tick(60)
 
 main()
