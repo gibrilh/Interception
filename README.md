@@ -1,3 +1,15 @@
+# Structure of the code 
+
+drone interception sim:
+    main.py
+    drone.py
+    rendering.py
+    camera.py
+    constants.py
+
+
+
+
 # DJI Air 3S Movement Values for the Simulation
 
 These values are estimates for the simulation. DJI gives maximum speed values for the Air 3S, but it does not provide official acceleration or braking values.
