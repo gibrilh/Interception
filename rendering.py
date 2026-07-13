@@ -163,3 +163,15 @@ def draw_text(x, y, text, screen_width=800, screen_height=600):
     glPopMatrix()
     glMatrixMode(GL_MODELVIEW)
     glPopMatrix()
+
+def draw_ground_grid(depth, spacing=20):
+    glBegin(GL_LINES)
+    glColor3f(0.3, 0.5, 0.3)  # darker green than background
+    for i in range(0, depth + 1, spacing):
+        # lines along X
+        glVertex3f(0, 0, i)
+        glVertex3f(depth, 0, i)
+        # lines along Z
+        glVertex3f(i, 0, 0)
+        glVertex3f(i, 0, depth)
+    glEnd()

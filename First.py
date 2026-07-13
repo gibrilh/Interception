@@ -9,7 +9,7 @@ from rendering import draw_axes, draw_cube, background
 from drone import Plane
 from camera import get_camera_position, init_gl
 from constants import depth, cube
-from rendering import draw_text
+from rendering import draw_text, draw_ground_grid
 
 # camera settings for it to be moved 
 cam_yaw = 0.0       # horizontal angle in radians
@@ -44,6 +44,7 @@ def main(): # window settings
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glClearColor(1, 1, 1, 1)
         background(depth)
+        draw_ground_grid(depth, spacing=20)
         draw_axes()
 
         keys = pygame.key.get_pressed()
@@ -102,7 +103,7 @@ def main(): # window settings
         if cam_mode == 'orbit':
             cx, cy, cz = get_camera_position(cam_yaw, cam_pitch, cam_distance)
             gluLookAt(cx, cy, cz,
-                0, 50, depth/2,
+                plane.position[0], plane.position[1], plane.position[2],
                 0, 1, 0)
         else:
         # FPV - camera sits inside the drone, looking forward along X axis
