@@ -120,3 +120,46 @@ def background(depth):
     glVertex3f( depth, 0,  depth)
     glVertex3f(0, 0,  depth)
     glEnd()
+
+def draw_text(x, y, text, screen_width=800, screen_height=600):
+    font = pygame.font.SysFont('monospace', 18)
+    text_surface = font.render(text, True, (0, 0, 0))
+    text_data = pygame.image.tostring(text_surface, 'RGBA', True)
+    w, h = text_surface.get_size()
+
+    # switch to 2D mode
+    glMatrixMode(GL_PROJECTION)
+    glPushMatrix()
+    glLoadIdentity()
+    glOrtho(0, screen_width, 0, screen_height, -1, 1)
+    glMatrixMode(GL_MODELVIEW)
+    glPushMatrix()
+    glLoadIdentity()
+
+    glDisable(GL_DEPTH_TEST)
+
+    tex = glGenTextures(1)
+    glBindTexture(GL_TEXTURE_2D, tex)
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, text_data)
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+
+    glEnable(GL_TEXTURE_2D)
+    glEnable(GL_BLEND)
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+
+    glBegin(GL_QUADS)
+    glTexCoord2f(0, 0); glVertex2f(x, y)
+    glTexCoord2f(1, 0); glVertex2f(x + w, y)
+    glTexCoord2f(1, 1); glVertex2f(x + w, y + h)
+    glTexCoord2f(0, 1); glVertex2f(x, y + h)
+    glEnd()
+
+    glDisable(GL_TEXTURE_2D)
+    glDisable(GL_BLEND)
+    glEnable(GL_DEPTH_TEST)
+    glDeleteTextures([tex])
+
+    glMatrixMode(GL_PROJECTION)
+    glPopMatrix()
+    glMatrixMode(GL_MODELVIEW)
+    glPopMatrix()
