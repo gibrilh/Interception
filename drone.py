@@ -5,8 +5,10 @@ from pygame.locals import *
 from OpenGL.GL import *
 from OpenGL.GLU import *
 from constants import depth, cube 
-from rendering import draw_axes, draw_cube, background
+from rendering import draw_cube, background
 import numpy as np
+
+scaler = 5
 
 class Plane: # plane variables that get updated 
     def __init__(self):
@@ -22,48 +24,48 @@ class Plane: # plane variables that get updated
         if self.input[0] == 0:
             # decelerate towards zero, don't overshoot it
             if self.velocity[0] > 0:
-                ax = -5.5
+                ax = -5.5 * scaler
             elif self.velocity[0] < 0:
-                ax = 5.5
+                ax = 5.5 * scaler
             else:
                 ax = 0
 
         elif self.input[0] * self.velocity[0] >= 0: # acceleration
-            ax = 4.5 * self.input[0]
+            ax = 4.5 * self.input[0] * scaler
 
         else: # braking
-            ax = 7.0 * self.input[0]
+            ax = 7.0 * self.input[0] * scaler
 
         # For Y axis 
         if self.input[1] == 0:
             if self.velocity[1] > 0:
-                ay = -4
+                ay = -4 * scaler
             elif self.velocity[1] < 0:
-                ay = 4
+                ay = 4 * scaler
             else:
                 ay = 0
 
         elif self.input[1] * self.velocity[1] >= 0:
-            ay = 4 * self.input[1]
+            ay = 4 * self.input[1] * scaler
 
         else:
-            ay = 5.0 * self.input[1]
+            ay = 5.0 * self.input[1] * scaler
     
         # For the Z axis 
         if self.input[2] == 0:
             # decelerate towards zero, don't overshoot it
             if self.velocity[2] > 0:
-                az = -5.5
+                az = -5.5 * scaler
             elif self.velocity[2] < 0:
-                az = 5.5
+                az = 5.5 * scaler
             else:
                 az = 0
 
         elif self.input[2] * self.velocity[2] >= 0: # acceleration
-            az = 4.5 * self.input[2]
+            az = 4.5 * self.input[2] * scaler
 
         else: # braking
-            az = 7.0 * self.input[2]
+            az = 7.0 * self.input[2] * scaler
 
         self.velocity[0] += ax * dt
         self.velocity[1] += ay * dt

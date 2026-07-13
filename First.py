@@ -5,18 +5,17 @@ from pygame.locals import *
 from OpenGL.GL import *
 from OpenGL.GLU import *
 import numpy as np
-from rendering import draw_axes, draw_cube, background
+from rendering import draw_cube, background, draw_text, draw_ground_grid, draw_shadow, draw_altitude_line
 from drone import Plane
 from camera import get_camera_position, init_gl
 from constants import depth, cube
-from rendering import draw_text, draw_ground_grid
 
 # camera settings for it to be moved 
 cam_yaw = 0.0       # horizontal angle in radians
 cam_pitch = 0.3     # vertical angle in radians
-cam_distance = 200  # zoom level
+cam_distance = 100  # zoom level
 fpv_yaw = 0.0
-fpv_pitch = 0.0
+fpv_pitch = 0.3
 cam_mode = 'orbit'  # or 'fpv'
 
 def main(): # window settings
@@ -44,8 +43,9 @@ def main(): # window settings
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glClearColor(1, 1, 1, 1)
         background(depth)
-        draw_ground_grid(depth, spacing=20)
-        draw_axes()
+        draw_ground_grid(depth, spacing=5)
+        draw_shadow(plane.position)
+        draw_altitude_line(plane.position)
 
         keys = pygame.key.get_pressed()
 

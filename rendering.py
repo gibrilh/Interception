@@ -7,50 +7,6 @@ from OpenGL.GLU import *
 from constants import depth, cube 
 import numpy as np
 
-def draw_axes(): # edges
-    glBegin(GL_LINES)
-    glColor3f(0, 0, 0)
-
-    # bottom face
-    glVertex3f(0, 0, 0)
-    glVertex3f(depth-1, 0, 0)
-
-    glVertex3f(depth-1, 0, 0)
-    glVertex3f(depth-1, 0, depth-1)
-
-    glVertex3f(depth-1, 0, depth-1)
-    glVertex3f(0, 0, depth-1)
-
-    glVertex3f(0, 0, depth-1)
-    glVertex3f(0, 0, 0)
-
-    # top face
-    glVertex3f(0, depth-1, 0)
-    glVertex3f(depth-1, depth-1, 0)
-
-    glVertex3f(depth-1, depth-1, 0)
-    glVertex3f(depth-1, depth-1, depth-1)
-
-    glVertex3f(depth-1, depth-1, depth-1)
-    glVertex3f(0, depth-1, depth-1)
-
-    glVertex3f(0, depth-1, depth-1)
-    glVertex3f(0, depth-1, 0)
-
-    # vertical edges
-    glVertex3f(0, 0, 0)
-    glVertex3f(0, depth-1, 0)
-
-    glVertex3f(depth-1, 0, 0)
-    glVertex3f(depth-1, depth-1, 0)
-
-    glVertex3f(depth-1, 0, depth-1)
-    glVertex3f(depth-1, depth-1, depth-1)
-
-    glVertex3f(0, 0, depth-1)
-    glVertex3f(0, depth-1, depth-1)
-
-    glEnd()
 
 def draw_cube():  # drawing cube 
     glBegin(GL_LINES)
@@ -105,7 +61,7 @@ def background(depth):
 
     # sky 2 
     glBegin(GL_QUADS)
-    glColor3f(0.5, 0.7, 1.0)
+    glColor3f(0.5, 0.8, 1.0)
     glVertex3f(depth, 0,       0)
     glVertex3f(depth, 0,       depth)
     glVertex3f(depth, depth, depth)
@@ -164,7 +120,7 @@ def draw_text(x, y, text, screen_width=800, screen_height=600):
     glMatrixMode(GL_MODELVIEW)
     glPopMatrix()
 
-def draw_ground_grid(depth, spacing=20):
+def draw_ground_grid(depth, spacing=5):
     glBegin(GL_LINES)
     glColor3f(0.3, 0.5, 0.3)  # darker green than background
     for i in range(0, depth + 1, spacing):
@@ -174,4 +130,35 @@ def draw_ground_grid(depth, spacing=20):
         # lines along Z
         glVertex3f(i, 0, 0)
         glVertex3f(i, 0, depth)
+    for i in range(0, depth + 1, spacing):
+        # lines along X
+        glVertex3f(0, i, 0)
+        glVertex3f(depth, i, 0)
+        # lines along Y
+        glVertex3f(i, 0, 0)
+        glVertex3f(i, depth, 0)
+    for i in range(0, depth + 1, spacing):
+        # lines along Z
+        glVertex3f(depth, 0, i)
+        glVertex3f(depth, depth, i)
+        # lines along Y
+        glVertex3f(depth, i, 0)
+        glVertex3f(depth, i, depth)
+    glEnd()
+
+def draw_shadow(position):
+    x, y, z = position
+    glBegin(GL_QUADS)
+    glColor3f(0.1, 0.3, 0.1)  # dark green
+    glVertex3f(x,        0.1, z)
+    glVertex3f(x + cube, 0.1, z)
+    glVertex3f(x + cube, 0.1, z + cube)
+    glVertex3f(x,        0.1, z + cube)
+    glEnd()
+
+def draw_altitude_line(position):
+    glBegin(GL_LINES)
+    glColor3f(1, 0, 0)
+    glVertex3f(position[0] + cube/2, position[1], position[2] + cube/2)
+    glVertex3f(position[0] + cube/2, 0,           position[2] + cube/2)
     glEnd()
