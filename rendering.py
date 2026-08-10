@@ -162,3 +162,7 @@ def draw_altitude_line(position):
     glVertex3f(position[0] + cube/2, position[1], position[2] + cube/2)
     glVertex3f(position[0] + cube/2, 0,           position[2] + cube/2)
     glEnd()
+
+def draw_game_over_screen():
+    draw_text(300, 350, "GAME OVER")
+    draw_text(300, 300, "Click to Restart")

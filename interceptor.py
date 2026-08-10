@@ -8,12 +8,11 @@ from constants import depth, cube, radius
 from rendering import draw_cube
 import numpy as np
 
-x = np.random.randint(0 + radius,depth - radius )
-z = np.random.randint(0 + radius,depth - radius )
-
 class LaunchSite: # plane variables that get updated 
     def __init__(self):
-        self.position = np.array([x,0,z], dtype=float)
+        x = np.random.randint(0 + radius, depth - radius)
+        z = np.random.randint(0 + radius, depth - radius)
+        self.position = np.array([x, 0, z], dtype=float)
 
     def draw(self): # drawing the cube 
         glPushMatrix()
@@ -59,3 +58,22 @@ class LaunchSite: # plane variables that get updated
         glPopMatrix()
         glEnable(GL_DEPTH_TEST)
         glDisable(GL_BLEND)
+
+class Interceptor:
+    def __init__(self, start_position):
+        self.position = start_position.copy()
+        self.speed = 21  # tune relative to drone's 21 m/s max
+
+    def update(self, dt, target_position):
+        direction = target_position - self.position
+        distance = np.linalg.norm(direction)
+        if distance > 0:
+            direction = direction / distance
+        self.position += direction * self.speed * dt
+
+    def draw(self):
+        glPushMatrix()
+        glTranslatef(*self.position)
+        glColor3f(1, 0.3, 0)
+        draw_cube()
+        glPopMatrix()

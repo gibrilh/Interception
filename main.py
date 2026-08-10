@@ -5,11 +5,11 @@ from pygame.locals import *
 from OpenGL.GL import *
 from OpenGL.GLU import *
 import numpy as np
-from rendering import draw_cube, background, draw_text, draw_ground_grid, draw_shadow, draw_altitude_line
+from rendering import draw_cube, background, draw_text, draw_ground_grid, draw_shadow, draw_altitude_line, draw_game_over_screen, draw_game_over_screen
 from drone import Plane
 from camera import get_camera_position, rotate_input_by_yaw, init_gl
 from constants import depth, cube, radius 
-from interceptor import LaunchSite
+from interceptor import LaunchSite, Interceptor
 
 # camera settings
 cam_yaw = 0.6
@@ -30,6 +30,9 @@ def main():
 
     plane = Plane()
     launch_site = LaunchSite()
+    interceptor = None
+    interceptor_launched = False
+    game_over = False
 
     while True:
         for event in pygame.event.get():
@@ -39,6 +42,12 @@ def main():
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_c:
                     cam_mode = 'fpv' if cam_mode == 'orbit' else 'orbit'
+            if event.type == pygame.MOUSEBUTTONDOWN and game_over:
+                plane = Plane()
+                launch_site = LaunchSite()
+                interceptor = None
+                interceptor_launched = False
+                game_over = False
 
         dt_ms = clock.tick(60)
         dt = dt_ms / 1000
@@ -56,18 +65,19 @@ def main():
         strafe = 0
         ay = 0
 
-        if keys[pygame.K_w]:
-            forward = 1
-        if keys[pygame.K_s]:
-            forward = -1
-        if keys[pygame.K_d]:
-            strafe = 1
-        if keys[pygame.K_a]:
-            strafe = -1
-        if keys[pygame.K_SPACE]:
-            ay = 1
-        if keys[pygame.K_LSHIFT]:
-            ay = -1
+        if not game_over:
+            if keys[pygame.K_w]:
+                forward = 1
+            if keys[pygame.K_s]:
+                forward = -1
+            if keys[pygame.K_d]:
+                strafe = 1
+            if keys[pygame.K_a]:
+                strafe = -1
+            if keys[pygame.K_SPACE]:
+                ay = 1
+            if keys[pygame.K_LSHIFT]:
+                ay = -1
 
         # Rotate movement input based on which camera is active
         if cam_mode == 'fpv':
@@ -75,11 +85,27 @@ def main():
         else:
             ix, iz = rotate_input_by_yaw(forward, -strafe, cam_yaw + math.pi)
 
-        plane.set_input(ix, ay, iz)
-        plane.update(dt)
+        if not game_over:
+            distance_to_site = np.linalg.norm(plane.position - launch_site.position)
+            if distance_to_site <= radius and not interceptor_launched:
+                interceptor_launched = True
+                interceptor = Interceptor(launch_site.position)
+
+            plane.set_input(ix, ay, iz)
+            plane.update(dt)
+
         plane.draw()
         launch_site.draw()
         launch_site.draw_detection_dome(radius)
+
+        if interceptor is not None:
+            if not game_over:
+                interceptor.update(dt, plane.position)
+            interceptor.draw()
+
+            hit_distance = np.linalg.norm(plane.position - interceptor.position)
+            if hit_distance < cube:
+                game_over = True
 
         # camera controls
         if cam_mode == 'fpv':
@@ -130,6 +156,9 @@ def main():
         draw_text(570, 500, f"pos: {plane.position.round(1)}")
         draw_text(570, 480, f"vel: {plane.velocity.round(1)}")
         draw_text(570, 460, f"inp: {plane.input.round(1)}")
+
+        if game_over:
+            draw_game_over_screen()
 
         pygame.display.flip()
 
