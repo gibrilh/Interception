@@ -5,7 +5,7 @@ from pygame.locals import *
 from OpenGL.GL import *
 from OpenGL.GLU import *
 from constants import depth, cube 
-from rendering import draw_cube, background
+from rendering import draw_cube
 import numpy as np
 
 scaler = 5

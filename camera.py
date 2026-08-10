@@ -13,6 +13,12 @@ def get_camera_position(cam_yaw, cam_pitch, cam_distance):
     z = cam_distance * math.cos(cam_pitch) * math.cos(cam_yaw)
     return x, y, z
 
+def rotate_input_by_yaw(forward, strafe, yaw):
+    # Converts 'forward' (W/S) and 'strafe' (A/D) intent into world-space X/Z input, based on the current camera yaw angle.
+    ix = forward * math.sin(yaw) + strafe * math.cos(yaw)
+    iz = forward * math.cos(yaw) - strafe * math.sin(yaw)
+    return ix, iz
+
 def init_gl(width, height):
     glEnable(GL_DEPTH_TEST)
     glMatrixMode(GL_PROJECTION)
