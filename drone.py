@@ -5,19 +5,38 @@ from pygame.locals import *
 from OpenGL.GL import *
 from OpenGL.GLU import *
 from constants import depth, cube 
-from rendering import draw_cube
+from rendering import draw_solid_cube
+from collections import deque 
 import numpy as np
 
 scaler = 5
 
 class Plane: # plane variables that get updated 
     def __init__(self):
-        self.position = np.array([0,0,0], dtype=float)
+        x = np.random.randint(0, depth)
+        z = np.random.randint(0, depth)
+        y = 0  # spawn on ground 
+        self.position = np.array([x, y, z], dtype=float)
         self.velocity = np.array([0,0,0], dtype=float)
         self.input = np.array([0, 0, 0], dtype=float)
+        self.trail = deque(maxlen=40)
     
     def set_input(self, ix, iy, iz):
         self.input = np.array([ix, iy, iz], dtype=float)
+
+    def draw_trail(self):
+        glDisable(GL_LIGHTING)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        n = len(self.trail)
+        glBegin(GL_LINE_STRIP)
+        for i, p in enumerate(self.trail):
+            a = i / max(1, n)
+            glColor4f(0.2, 0.9, 1.0, a * 0.8)
+            glVertex3f(p[0] + cube/2, p[1] + cube/2, p[2] + cube/2)
+        glEnd()
+        glDisable(GL_BLEND)
+        glEnable(GL_LIGHTING)
     
     def update(self, dt): # movement settings 
         # For the X axis 
@@ -101,9 +120,13 @@ class Plane: # plane variables that get updated
         if self.position[2] > depth - cube : # ground settings 
             self.position[2] = depth - cube 
             self.velocity[2] = 0
+
+        self.trail.append(self.position.copy())
     
     def draw(self): # drawing the cube 
         glPushMatrix()
         glTranslatef(*self.position)
-        draw_cube()
+        draw_solid_cube((0.2, 0.7, 1.0))
         glPopMatrix()
+
+    

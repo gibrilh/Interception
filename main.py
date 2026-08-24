@@ -5,11 +5,11 @@ from pygame.locals import *
 from OpenGL.GL import *
 from OpenGL.GLU import *
 import numpy as np
-from rendering import draw_cube, background, draw_text, draw_ground_grid, draw_shadow, draw_altitude_line, draw_game_over_screen, draw_game_over_screen
+from rendering import draw_solid_cube, background, draw_text, draw_ground_grid, draw_shadow, draw_altitude_line, draw_game_over_screen, draw_danger_overlay, draw_compass
 from drone import Plane
 from camera import get_camera_position, rotate_input_by_yaw, init_gl
 from constants import depth, cube, radius 
-from interceptor import LaunchSite, Interceptor
+from interceptor import LaunchSite, Interceptor, Goal 
 
 # camera settings
 cam_yaw = 0.6
@@ -30,9 +30,11 @@ def main():
 
     plane = Plane()
     launch_site = LaunchSite()
+    goal = Goal(radius=20)
     interceptor = None
     interceptor_launched = False
-    game_over = False
+    game_over = False   # True when the round has ended, freezes the action
+    win = False          # True if the round ended by reaching the goal, False if caught
 
     while True:
         for event in pygame.event.get():
@@ -45,9 +47,11 @@ def main():
             if event.type == pygame.MOUSEBUTTONDOWN and game_over:
                 plane = Plane()
                 launch_site = LaunchSite()
+                goal = Goal()
                 interceptor = None
                 interceptor_launched = False
                 game_over = False
+                win = False
 
         dt_ms = clock.tick(60)
         dt = dt_ms / 1000
@@ -79,9 +83,8 @@ def main():
             if keys[pygame.K_LSHIFT]:
                 ay = -1
 
-        # Rotate movement input based on which camera is active
         if cam_mode == 'fpv':
-            ix, iz = rotate_input_by_yaw(forward, strafe, fpv_yaw)
+            ix, iz = rotate_input_by_yaw(forward, -strafe, fpv_yaw)
         else:
             ix, iz = rotate_input_by_yaw(forward, -strafe, cam_yaw + math.pi)
 
@@ -94,29 +97,45 @@ def main():
             plane.set_input(ix, ay, iz)
             plane.update(dt)
 
+        plane.draw_trail()
         plane.draw()
         launch_site.draw()
         launch_site.draw_detection_dome(radius)
+        goal.draw()
 
         if interceptor is not None:
             if not game_over:
                 interceptor.update(dt, plane.position)
+            interceptor.draw_trail()
             interceptor.draw()
 
-            hit_distance = np.linalg.norm(plane.position - interceptor.position)
-            if hit_distance < cube:
+            if not game_over:
+                hit_distance = np.linalg.norm(plane.position - interceptor.position)
+                if hit_distance < cube:
+                    game_over = True
+                    win = False
+
+        if not game_over:
+            goal_distance = np.linalg.norm(plane.position - goal.position)
+            if goal_distance < goal.radius:
                 game_over = True
+                win = True
+
+        if interceptor is not None and not game_over:
+            t = pygame.time.get_ticks() / 1000
+            pulse = 0.15 + 0.1 * abs(math.sin(t * 6))
+            draw_danger_overlay(pulse)
 
         # camera controls
         if cam_mode == 'fpv':
             if keys[pygame.K_LEFT]:
-                fpv_yaw += 0.02
+                fpv_yaw += 0.05
             if keys[pygame.K_RIGHT]:
-                fpv_yaw -= 0.02
+                fpv_yaw -= 0.05
             if keys[pygame.K_UP]:
-                fpv_pitch += 0.02
+                fpv_pitch += 0.05
             if keys[pygame.K_DOWN]:
-                fpv_pitch -= 0.02
+                fpv_pitch -= 0.05
             fpv_pitch = max(-1.4, min(1.4, fpv_pitch))
         else:
             if keys[pygame.K_LEFT]:
@@ -143,9 +162,11 @@ def main():
                       depth/2, depth/2, depth/2,
                       0, 1, 0)
         else:
-            px = plane.position[0] + cube/2
-            py = plane.position[1] + cube/2
-            pz = plane.position[2] + cube/2
+            back_offset = 15
+            up_offset = 5
+            px = plane.position[0] + cube/2 - back_offset * math.sin(fpv_yaw)
+            py = plane.position[1] + cube/2 + up_offset
+            pz = plane.position[2] + cube/2 - back_offset * math.cos(fpv_yaw)
             lx = px + math.cos(fpv_pitch) * math.sin(fpv_yaw)
             ly = py + math.sin(fpv_pitch)
             lz = pz + math.cos(fpv_pitch) * math.cos(fpv_yaw)
@@ -156,9 +177,10 @@ def main():
         draw_text(570, 500, f"pos: {plane.position.round(1)}")
         draw_text(570, 480, f"vel: {plane.velocity.round(1)}")
         draw_text(570, 460, f"inp: {plane.input.round(1)}")
+        draw_compass(plane.position, goal.position)
 
         if game_over:
-            draw_game_over_screen()
+            draw_game_over_screen(win)
 
         pygame.display.flip()
 

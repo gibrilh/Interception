@@ -21,6 +21,20 @@ def rotate_input_by_yaw(forward, strafe, yaw):
 
 def init_gl(width, height):
     glEnable(GL_DEPTH_TEST)
+    glEnable(GL_LIGHTING)
+    glEnable(GL_LIGHT0)
+    glEnable(GL_COLOR_MATERIAL)
+    glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE)
+    glLightfv(GL_LIGHT0, GL_POSITION, (100.0, 300.0, 150.0, 1.0))
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, (1.0, 1.0, 1.0, 1.0))
+    glLightfv(GL_LIGHT0, GL_AMBIENT, (0.35, 0.35, 0.4, 1.0))
+
+    glEnable(GL_FOG)   # depth cue — distant stuff fades into sky
+    glFogi(GL_FOG_MODE, GL_LINEAR)
+    glFogfv(GL_FOG_COLOR, (0.5, 0.75, 1.0, 1.0))
+    glFogf(GL_FOG_START, 120)
+    glFogf(GL_FOG_END, 400)
+
     glMatrixMode(GL_PROJECTION)
     glLoadIdentity()
     gluPerspective(45, width / height, 0.1, 2000.0)
