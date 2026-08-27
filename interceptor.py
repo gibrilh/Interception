@@ -61,17 +61,67 @@ class LaunchSite: # plane variables that get updated
         glDisable(GL_BLEND)
 
 class Interceptor:
-    def __init__(self, start_position):
+    MIN_RANGE = cube * 3  # below this, freeze the LOS-rate term instead of letting it blow up
+
+    def __init__(self, start_position, target_position, speed=21, N=3):
         self.position = start_position.copy()
-        self.speed = 21  # tune relative to drone's 21 m/s max
+        self.speed = speed # missile flies at constant speed; PN only ever steers its heading
+        self.N = N    # navigation constant - higher = more aggressive lead, more oscillation
+        self.max_accel = speed * 1.2  # clamp on commanded turn so it curves instead of snapping
         self.trail = deque(maxlen=40)
 
-    def update(self, dt, target_position):
-        direction = target_position - self.position
-        distance = np.linalg.norm(direction)
-        if distance > 0:
-            direction = direction / distance
-        self.position += direction * self.speed * dt
+        # aim straight at the target's starting position instead of starting from rest
+        aim = target_position - start_position
+        dist = np.linalg.norm(aim)
+        self.velocity = (aim / dist * speed) if dist > 1e-6 else np.array([0, 0, speed], dtype=float)
+
+    def update(self, dt, target_position, target_velocity):
+        R = target_position - self.position
+        range_ = np.linalg.norm(R)
+        if range_ < 1e-6:
+            self.position += self.velocity * dt
+            self._clamp_to_bounds()
+            return
+
+        los_unit = R / range_
+        V_rel = target_velocity - self.velocity
+
+        # line-of-sight rotation rate as a vector (analytic, no history needed).
+        # Floor the range used in the denominator so omega doesn't diverge as
+        # range_ -> 0 right before impact (true PN's classic singularity).
+        range_sq = max(range_ * range_, self.MIN_RANGE ** 2)
+        omega = np.cross(R, V_rel) / range_sq
+        # closing velocity: how fast the range is shrinking
+        Vc = -np.dot(V_rel, los_unit)
+
+        # true proportional navigation: accelerate perpendicular to the LOS,
+        # proportional to closing speed and how fast the LOS is rotating
+        a_cmd = self.N * Vc * np.cross(omega, los_unit)
+
+        a_mag = np.linalg.norm(a_cmd)
+        if a_mag > self.max_accel:
+            a_cmd = a_cmd / a_mag * self.max_accel
+
+        self.velocity += a_cmd * dt
+        v_mag = np.linalg.norm(self.velocity)
+        if v_mag > 1e-6:
+            self.velocity = self.velocity / v_mag * self.speed   # speed stays constant, only heading bends
+        else:
+            self.velocity = los_unit * self.speed
+
+        self.position += self.velocity * dt
+        self._clamp_to_bounds()
+
+    def _clamp_to_bounds(self):
+        # keep the missile inside the same play area the drone is confined to
+        for i in range(3):
+            if self.position[i] < 0:
+                self.position[i] = 0
+                self.velocity[i] = abs(self.velocity[i])   # bounce heading back inward
+            elif self.position[i] > depth - cube:
+                self.position[i] = depth - cube
+                self.velocity[i] = -abs(self.velocity[i])
+        self.trail.append(self.position.copy())
 
     def draw(self):
         glPushMatrix()

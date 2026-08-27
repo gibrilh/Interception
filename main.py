@@ -102,7 +102,7 @@ def main():
             distance_to_site = np.linalg.norm(plane.position - launch_site.position)
             if distance_to_site <= radius and not interceptor_launched:
                 interceptor_launched = True
-                interceptor = Interceptor(launch_site.position)
+                interceptor = Interceptor(launch_site.position, plane.position)
 
             plane.set_input(ix, ay, iz)
             plane.update(dt)
@@ -115,7 +115,7 @@ def main():
 
         if interceptor is not None:
             if not game_over:
-                interceptor.update(dt, plane.position)
+                interceptor.update(dt, plane.position, plane.velocity)
             interceptor.draw_trail()
             interceptor.draw()
 
