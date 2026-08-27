@@ -68,9 +68,9 @@ def background(depth):
     glVertex3f(0, 0,  depth)
     glEnd()
 
-def draw_text(x, y, text, screen_width=800, screen_height=600):
+def draw_text(x, y, text, screen_width=800, screen_height=600, color=(0, 0, 0)):
     font = pygame.font.SysFont('monospace', 18)
-    text_surface = font.render(text, True, (0, 0, 0))
+    text_surface = font.render(text, True, color)
     text_data = pygame.image.tostring(text_surface, 'RGBA', True)
     w, h = text_surface.get_size()
 
@@ -156,10 +156,6 @@ def draw_altitude_line(position):
     glVertex3f(position[0] + cube/2, 0,           position[2] + cube/2)
     glEnd()
 
-def draw_game_over_screen(game_over):
-    draw_text(300, 350, "GAME OVER")
-    draw_text(300, 300, "Click to Restart")
-
 def draw_game_over_screen(win):
     if win:
         draw_text(300, 350, "YOU WIN")
@@ -184,22 +180,44 @@ def draw_danger_overlay(intensity, screen_width=800, screen_height=600):
     glMatrixMode(GL_PROJECTION); glPopMatrix()
     glMatrixMode(GL_MODELVIEW); glPopMatrix()
 
-def draw_compass(plane_pos, target_pos, color=(0,1,0), screen_width=800, screen_height=600):
+def draw_compass(plane_pos, target_pos, view_yaw, color=(0,1,0), screen_width=800, screen_height=600):
     dx, dz = target_pos[0]-plane_pos[0], target_pos[2]-plane_pos[2]
-    angle = math.atan2(dx, dz)
-    cx, cy, r = screen_width/2, screen_height-40, 25
-    tip = (cx + r*math.sin(angle), cy + r*math.cos(angle))
+    target_bearing = math.atan2(dx, dz)
+    rel = target_bearing - view_yaw  # angle of the target relative to where we're currently facing
+
+    cx, cy, r = screen_width/2, screen_height-70, 28
+    # dir points "up" (ahead) on screen when rel==0, swings right/left to match which way to turn
+    dirx, diry = -math.sin(rel), math.cos(rel)
+    perpx, perpy = diry, -dirx
+
+    tip  = (cx + dirx*r, cy + diry*r)
+    base_l = (cx + dirx*r*0.25 + perpx*r*0.45, cy + diry*r*0.25 + perpy*r*0.45)
+    base_r = (cx + dirx*r*0.25 - perpx*r*0.45, cy + diry*r*0.25 - perpy*r*0.45)
+    tail   = (cx - dirx*r*0.5, cy - diry*r*0.5)
+
     glMatrixMode(GL_PROJECTION); glPushMatrix(); glLoadIdentity()
     glOrtho(0, screen_width, 0, screen_height, -1, 1)
     glMatrixMode(GL_MODELVIEW); glPushMatrix(); glLoadIdentity()
-    glDisable(GL_DEPTH_TEST); glDisable(GL_LIGHTING)
-    glColor3f(*color)
+    glDisable(GL_DEPTH_TEST); glDisable(GL_LIGHTING); glDisable(GL_FOG)
+    glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+
+    # dial ring
+    glColor4f(0, 0, 0, 0.35)
     glBegin(GL_LINE_LOOP)
-    for i in range(20):
-        a = 2*math.pi*i/20
-        glVertex2f(cx + r*math.cos(a), cy + r*math.sin(a))
+    for i in range(28):
+        a = 2*math.pi*i/28
+        glVertex2f(cx + r*1.15*math.cos(a), cy + r*1.15*math.sin(a))
     glEnd()
-    glBegin(GL_LINES); glVertex2f(cx, cy); glVertex2f(*tip); glEnd()
-    glEnable(GL_LIGHTING); glEnable(GL_DEPTH_TEST)
+
+    # arrowhead (filled triangle) + tail (thin shaft), like a compass needle
+    glColor3f(*color)
+    glBegin(GL_TRIANGLES)
+    glVertex2f(*tip); glVertex2f(*base_l); glVertex2f(*base_r)
+    glEnd()
+    glLineWidth(2.0)
+    glBegin(GL_LINES); glVertex2f(cx, cy); glVertex2f(*tail); glEnd()
+
+    glDisable(GL_BLEND)
+    glEnable(GL_LIGHTING); glEnable(GL_DEPTH_TEST); glEnable(GL_FOG)
     glMatrixMode(GL_PROJECTION); glPopMatrix()
     glMatrixMode(GL_MODELVIEW); glPopMatrix()
