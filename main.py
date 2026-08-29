@@ -11,7 +11,7 @@ from camera import get_camera_position, rotate_input_by_yaw, init_gl
 from constants import depth, cube, radius 
 from interceptor import LaunchSite, Interceptor, Goal
 
-TIME_LIMIT = 30.0 # seconds to reach the goal before it's game over
+TIME_LIMIT = 150.0 # seconds to reach the goal before it's game over
 
 # camera settings
 cam_yaw = 0.6
@@ -24,7 +24,7 @@ cam_mode = 'orbit'
 def main():
     global cam_yaw, cam_pitch, cam_distance, cam_mode, fpv_yaw, fpv_pitch
     pygame.init()
-    screen = pygame.display.set_mode((800,600), DOUBLEBUF | OPENGL)
+    screen = pygame.display.set_mode((1200,900), DOUBLEBUF | OPENGL)
     pygame.display.set_caption("missile simulation")
     clock = pygame.time.Clock()
 

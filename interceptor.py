@@ -63,11 +63,11 @@ class LaunchSite: # plane variables that get updated
 class Interceptor:
     MIN_RANGE = cube * 3  # below this, freeze the LOS-rate term instead of letting it blow up
 
-    def __init__(self, start_position, target_position, speed=21, N=3):
+    def __init__(self, start_position, target_position, speed=21, N=4, turn_rate_deg=260):
         self.position = start_position.copy()
         self.speed = speed # missile flies at constant speed; PN only ever steers its heading
-        self.N = N    # navigation constant - higher = more aggressive lead, more oscillation
-        self.max_accel = speed * 1.2  # clamp on commanded turn so it curves instead of snapping
+        self.N = N    # how strongly it reacts to LOS rotation, below the hard turn-rate cap
+        self.max_turn_rate = math.radians(turn_rate_deg)  # hard cap on how fast the heading can bend, in rad/s
         self.trail = deque(maxlen=40)
 
         # aim straight at the target's starting position instead of starting from rest
@@ -85,42 +85,52 @@ class Interceptor:
 
         los_unit = R / range_
         V_rel = target_velocity - self.velocity
+        heading = self.velocity / self.speed   # unit vector - velocity is always kept at constant magnitude
 
         # line-of-sight rotation rate as a vector (analytic, no history needed).
         # Floor the range used in the denominator so omega doesn't diverge as
         # range_ -> 0 right before impact (true PN's classic singularity).
         range_sq = max(range_ * range_, self.MIN_RANGE ** 2)
         omega = np.cross(R, V_rel) / range_sq
-        # closing velocity: how fast the range is shrinking
-        Vc = -np.dot(V_rel, los_unit)
+        Vc = -np.dot(V_rel, los_unit)  # closing velocity: how fast the range is shrinking
 
-        # true proportional navigation: accelerate perpendicular to the LOS,
-        # proportional to closing speed and how fast the LOS is rotating
-        a_cmd = self.N * Vc * np.cross(omega, los_unit)
-
-        a_mag = np.linalg.norm(a_cmd)
-        if a_mag > self.max_accel:
-            a_cmd = a_cmd / a_mag * self.max_accel
-
-        self.velocity += a_cmd * dt
-        v_mag = np.linalg.norm(self.velocity)
-        if v_mag > 1e-6:
-            self.velocity = self.velocity / v_mag * self.speed   # speed stays constant, only heading bends
+        if Vc > 0:
+            # true PN: bend toward nulling the LOS rotation (leads the target)
+            steer = np.cross(omega, los_unit)
         else:
-            self.velocity = los_unit * self.speed
+            # target is pulling away faster than we're closing - PN's sign
+            # flips here and fights itself, so just fall back to pointing at it
+            steer = los_unit - heading
 
+        # keep only the part of the steer signal perpendicular to our current
+        # heading - that's the actual turn direction (this is what lets us
+        # apply a clean, directly-tunable angular turn rate below)
+        steer = steer - np.dot(steer, heading) * heading
+        steer_mag = np.linalg.norm(steer)
+
+        if steer_mag > 1e-6:
+            turn_dir = steer / steer_mag
+            # how hard PN wants to turn this frame, capped at the missile's max turn rate
+            dtheta = min(self.N * steer_mag * dt, self.max_turn_rate * dt)
+            heading = heading * math.cos(dtheta) + turn_dir * math.sin(dtheta)
+            heading = heading / np.linalg.norm(heading)
+
+        self.velocity = heading * self.speed
         self.position += self.velocity * dt
         self._clamp_to_bounds()
 
     def _clamp_to_bounds(self):
-        # keep the missile inside the same play area the drone is confined to
+        # keep the missile inside the same play area the drone is confined to.
+        # Only kill the outward-pointing component - don't reverse it - so it
+        # slides along the boundary and PN's own next correction steers it
+        # back in, instead of a hard "bounce" fighting the guidance law.
         for i in range(3):
             if self.position[i] < 0:
                 self.position[i] = 0
-                self.velocity[i] = abs(self.velocity[i])   # bounce heading back inward
+                self.velocity[i] = max(self.velocity[i], 0)
             elif self.position[i] > depth - cube:
                 self.position[i] = depth - cube
-                self.velocity[i] = -abs(self.velocity[i])
+                self.velocity[i] = min(self.velocity[i], 0)
         self.trail.append(self.position.copy())
 
     def draw(self):
