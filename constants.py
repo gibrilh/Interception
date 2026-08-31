@@ -5,7 +5,7 @@ depth = 200  # size of play area, in world units
 cube = 5     # size of the drone/interceptor, in world units
 
 # main.py + interceptor.py
-interception_radius = 80  # how close the drone must get to the launch site to trigger it
+interception_radius = 100  # how close the drone must get to the launch site to trigger it
 
 # main.py + rendering.py + interceptor.py
 goal_radius = 20  # how close the drone must get to the goal to win

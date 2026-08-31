@@ -161,10 +161,10 @@ class Interceptor: # the homing missile
         draw_trail(self.trail, (0.9, 0.0, 0.0))
 
 class Goal: # the win zone - translucent sphere + ground marker
-    def __init__(self, radius=goal_radius): # random position anywhere in the arena
-        x = np.random.randint(0, depth)
-        y = np.random.randint(0, depth)
-        z = np.random.randint(0, int(depth*0.7) )
+    def __init__(self, radius=goal_radius): # random position anywhere in the arena but goal isn't within the boundaries. 
+        x = np.random.randint(goal_radius, depth - goal_radius)
+        y = np.random.randint(goal_radius, int(depth*0.7))
+        z = np.random.randint(goal_radius, depth - goal_radius)
         self.position = np.array([x, y, z], dtype=float)
         self.radius = radius
 

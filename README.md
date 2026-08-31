@@ -1,393 +1,76 @@
-# Structure of the code 
+# Drone Interceptor
 
-drone interception sim:
-    main.py
-    drone.py
-    rendering.py
-    camera.py
-    constants.py
+## Why this exists
 
+I saw a LinkedIn post of someone running a 2D simulation of a missile intercepting a target, and I wanted to turn it into something you can pilot in basic 3D. This project is that: a drone-interception sim where you fly a drone under proportional-navigation missile guidance and try to reach a goal zone before you get hit.
 
+Mostly this was a way to get comfortable with a real coding project before starting my masters - picking something with physics, geometry, and a bit of controls theory in it felt like a good bridge between my mechanical engineering background and the Applied Computational Science and Engineering degree I'm starting at Imperial. It also doubled as my first proper attempt at using Git and GitHub as an actual workflow rather than just a place to dump code.
 
+This is a finished prototype, not a finished game. Things I want to add next: better graphics, buildings to weave between, multiple interceptors at once, and a more complete HUD. I'll keep building on it during the year
 
-# DJI Air 3S Movement Values for the Simulation
+## How to play
 
-These values are estimates for the simulation. DJI gives maximum speed values for the Air 3S, but it does not provide official acceleration or braking values.
+You control a drone with keyboard input, and your job is to reach the green goal zone before the interceptor missile catches you. The missile only launches once you fly the drone inside the launch site's red detection dome - stay outside it and nothing chases you, but you also can't reach most goals without eventually passing near a launch site.
 
-## Main Values
+**Controls:**
 
-### Horizontal Movement
+| Key | Action |
+| --- | --- |
+| `W` / `S` | Forward / backward |
+| `A` / `D` | Strafe left / right |
+| `Space` | Ascend |
+| `Left Shift` | Descend |
+| `C` | Toggle camera mode |
+| `+` / `-` | Zoom (fixed camera only) |
+| Arrow keys | Look around (FPV camera only) |
+| Mouse click | Restart after game over |
 
-| Value                                   |     Amount |
-| --------------------------------------- | ---------: |
-| Maximum horizontal speed                | `21.0 m/s` |
-| Horizontal acceleration                 | `4.5 m/s²` |
-| Deceleration after releasing the key    | `5.5 m/s²` |
-| Braking after pressing the opposite key | `7.0 m/s²` |
+**The two cameras:**
 
-These values are used for forward, backward, left, and right movement.
+- **Fixed/orbit camera** (default): a locked-off overview angle looking down at the whole play area, so you can see the drone, the missile, and the goal at the same time. WASD always moves the drone the same way regardless of where you're looking, since the camera doesn't rotate. Zoom in/out with `+`/`-`.
+- **FPV camera**: a chase camera right behind the drone, looking where the drone is heading. You can look around freely with the arrow keys. This is the more immersive, harder-to-fly view - fog kicks in here to keep visibility feeling tight and cockpit-like. Toggle between the two with `C`.
 
-### Vertical Movement
+**How to actually win:** once the missile is locked on, don't just fly straight for the goal, it will mostly get to you before. The missile uses proportional navigation, which is good at closing distance smoothly but reacts to how fast your relative position is sweeping across its sight line. If you jink, suddenly reverse or cut sideways, especially once the missile is close, you spike that sweep rate and force it into a hard, often overcorrected turn. Time your jinks right and the missile overshoots or has to burn distance recovering, buying you the opening to get to the goal.
 
-| Value                             |     Amount |
-| --------------------------------- | ---------: |
-| Maximum upward speed              | `10.0 m/s` |
-| Maximum downward speed            | `10.0 m/s` |
-| Upward acceleration               | `3.5 m/s²` |
-| Downward acceleration             | `4.0 m/s²` |
-| Vertical deceleration and braking | `5.0 m/s²` |
+## Code overview
 
-## The Three Types of Speed Change
+- **[main.py](main.py)** - the game loop. Reads input, updates the drone and missile each frame, checks win/loss conditions, and draws everything including the HUD.
+- **[drone.py](drone.py)** - the player-controlled drone: acceleration/braking physics (tuned to rough DJI Air 3S values, see below) and its visual facing direction.
+- **[interceptor.py](interceptor.py)** - the missile, its launch site, and the goal zone. This is where the proportional navigation guidance lives.
+- **[camera.py](camera.py)** - the two camera modes (fixed overview and FPV) and the one-time OpenGL setup.
+- **[rendering.py](rendering.py)** - shared drawing code: the drone/missile shape, trails, ground grid, and all HUD elements (speed, altitude, compass, timer, goal distance).
+- **[constants.py](constants.py)** - shared tunable values (arena size, speed caps, detection/goal radii), grouped by which files actually use them.
 
-The simulation uses three different rates:
+## Proportional navigation, and how it's used here
 
-1. Acceleration
-2. Deceleration after releasing the input
-3. Braking after pressing the opposite input
+Proportional navigation (PN) is the guidance law real heat-seeking and radar-guided missiles use. Instead of just steering straight at wherever the target currently is (which lags behind and produces a big curve), PN watches how fast the line of sight to the target is rotating and steers to cancel that rotation out. A line of sight that isn't rotating at all means the missile and target are on a collision course, so it goes for it. 
 
-These are separate because the drone should react differently depending on what the player is doing.
+In `interceptor.py`, `Interceptor.update()` does this every frame:
 
-## Normal Acceleration
+1. **Line of sight and its rotation rate.** `omega = cross(R, V_rel) / range²` - the vector from missile to target crossed with the relative velocity, scaled by range squared, gives the angular rate the sight-line is sweeping at.
+2. **Closing velocity.** `Vc = -dot(V_rel, los_unit)` - how fast the distance between missile and target is actually shrinking. If the target is pulling away faster than the missile is gaining, true PN math breaks down, so the missile falls back to just pointing straight at the target instead.
+3. **Steering direction.** `cross(omega, los_unit)` gives the direction that reduces the sight-line's rotation rate - this is the actual PN steering command.
+4. **Turn-rate-limited heading update.** The missile rotates its heading toward that steering direction, but capped at a maximum turn rate (its "how sharp can it bank" limit) rather than an unlimited acceleration, so it behaves like something with a real airframe rather than an omniscient homing dot.
+5. **Rebuild velocity from heading**, with separate horizontal and vertical speed caps, mirroring how the drone itself moves.
 
-Normal acceleration is used when the drone is gaining speed in the same direction as the current input.
+There's also a low-pass filter on `omega` (`omega_smoothed`) so the missile doesn't violently snap its aim on every single frame of jinking - it blends the new reading in gradually instead of reacting instantly, which is closer to how a real seeker head behaves and is exactly why jinking near the missile still works as a tactic rather than being an exploit: overreacting to a spiking sight-line rate is a genuine, well-known weakness of PN, not a bug.
 
-This happens when:
+---
 
-* The drone is stopped and a direction is pressed.
-* The drone is already moving in that direction.
-* The drone has not yet reached its maximum speed.
+# DJI Air 3S Movement Values
 
-For horizontal movement, the acceleration is:
+DJI publishes max speeds for the Air 3S but not acceleration or braking figures, so these are estimates used to give the drone a plausible, controlled feel rather than an arcade-y one.
 
-```text
-4.5 m/s²
-```
+| Axis | Max speed | Accelerate | Release (coast to stop) | Brake (opposite key) |
+| --- | ---: | ---: | ---: | ---: |
+| Horizontal (x/z) | `21.0 m/s` | `4.5 m/s²` | `5.5 m/s²` | `7.0 m/s²` |
+| Vertical up | `10.0 m/s` | `3.5 m/s²` | `5.0 m/s²` | `5.0 m/s²` |
+| Vertical down | `10.0 m/s` | `4.0 m/s²` | `5.0 m/s²` | `5.0 m/s²` |
 
-For example, if the drone starts from rest and moves right, the speed would increase like this at one-second intervals:
+Each axis has three separate rates, because the drone should react differently depending on player intent:
 
-```text
-0.0 m/s
-4.5 m/s
-9.0 m/s
-13.5 m/s
-18.0 m/s
-21.0 m/s
-```
+- **Accelerate** - held input, same direction as current velocity (or starting from rest): speeds up toward max.
+- **Release** - no input: coasts down to a stop, like a flight controller holding position rather than drifting.
+- **Brake** - opposite input pressed while still moving the old way: kills the existing velocity first, faster than either of the above. Once speed hits zero, it switches to normal acceleration in the new direction - a reversal is always brake-to-zero, then accelerate, never an instant flip.
 
-The speed stops increasing when it reaches the maximum horizontal speed of `21.0 m/s`.
-
-The exact values between frames depend on the simulation timestep, but the general behavior stays the same.
-
-## Deceleration After Releasing the Key
-
-When the player releases a movement key, the target speed becomes zero.
-
-The drone does not keep drifting freely. A DJI drone uses its flight controller to slow down and hold its position.
-
-For horizontal movement, the release deceleration is:
-
-```text
-5.5 m/s²
-```
-
-For example, if the drone is moving right at `11.0 m/s` and the key is released:
-
-```text
-11.0 m/s
-5.5 m/s
-0.0 m/s
-```
-
-This means releasing the key causes the drone to stop faster than it normally accelerates.
-
-However, it stops more slowly than when the player presses the opposite direction.
-
-## Braking After Pressing the Opposite Key
-
-Opposite-input braking happens when the drone is moving in one direction and the player presses the opposite direction.
-
-For example:
-
-```text
-Current movement: right
-Current speed: 10.0 m/s
-New input: left
-```
-
-This movement is split into two parts.
-
-### First Part: Braking
-
-The drone first removes its existing rightward speed.
-
-The braking rate is:
-
-```text
-7.0 m/s²
-```
-
-The speed moves toward zero:
-
-```text
-10.0 m/s right
-3.0 m/s right
-0.0 m/s
-```
-
-The exact values depend on the timestep, but the important part is that the speed is reduced at `7.0 m/s²`.
-
-### Second Part: Accelerating in the New Direction
-
-Once the drone reaches zero speed, the braking phase ends.
-
-It then starts accelerating left using the normal horizontal acceleration:
-
-```text
-4.5 m/s²
-```
-
-The full movement is:
-
-```text
-Moving right
-Brake at 7.0 m/s²
-Reach 0.0 m/s
-Accelerate left at 4.5 m/s²
-```
-
-The `7.0 m/s²` value is only used to remove the old velocity.
-
-It is not used to accelerate in the new direction.
-
-## Why Braking Is Faster Than Acceleration
-
-The three horizontal rates are:
-
-| Behavior                     |       Rate |
-| ---------------------------- | ---------: |
-| Normal acceleration          | `4.5 m/s²` |
-| Deceleration after release   | `5.5 m/s²` |
-| Braking after opposite input | `7.0 m/s²` |
-
-Braking is faster than acceleration because stopping is usually more important than reaching full speed quickly.
-
-A DJI drone is designed to feel controlled and stable. When the pilot releases the controls, the drone should slow down and hold position instead of drifting for a long time.
-
-Pressing the opposite direction also shows a stronger intention than simply releasing the controls.
-
-Releasing the key means:
-
-```text
-Stop moving.
-```
-
-Pressing the opposite key means:
-
-```text
-Stop moving in the current direction, then move the other way.
-```
-
-Because of that, opposite-input braking uses the strongest rate.
-
-Using a lower acceleration and stronger braking also makes the drone feel less loose in the simulation.
-
-## Horizontal Movement Patterns
-
-### Starting From Rest
-
-If the drone is stopped and the player presses right:
-
-```text
-Current speed: 0.0 m/s
-Input: right
-Target speed: 21.0 m/s right
-Acceleration: 4.5 m/s²
-```
-
-The drone accelerates right until it reaches maximum speed.
-
-### Continuing in the Same Direction
-
-If the drone is already moving right at `10.0 m/s` and the player continues holding right:
-
-```text
-Current speed: 10.0 m/s right
-Input: right
-Target speed: 21.0 m/s right
-Acceleration: 4.5 m/s²
-```
-
-The drone continues gaining speed until it reaches `21.0 m/s`.
-
-### Releasing the Input
-
-If the drone is moving right at `10.0 m/s` and the player releases the key:
-
-```text
-Current speed: 10.0 m/s right
-Input: none
-Target speed: 0.0 m/s
-Deceleration: 5.5 m/s²
-```
-
-The drone slows down until it stops.
-
-### Pressing the Opposite Direction
-
-If the drone is moving right at `10.0 m/s` and the player presses left:
-
-```text
-Current speed: 10.0 m/s right
-Input: left
-```
-
-The behavior is:
-
-```text
-Brake from 10.0 m/s right to 0.0 m/s
-Braking rate: 7.0 m/s²
-
-Then accelerate from 0.0 m/s toward the left
-Acceleration rate: 4.5 m/s²
-```
-
-### Releasing the Key During a Reversal
-
-Suppose the drone is moving right and the player presses left.
-
-The drone starts braking toward zero.
-
-If the player releases the left key before the drone reaches zero, the target becomes zero instead of leftward movement.
-
-For example:
-
-```text
-Current speed: 3.0 m/s right
-Input: none
-Target speed: 0.0 m/s
-Deceleration: 5.5 m/s²
-```
-
-The drone finishes stopping.
-
-It does not continue into leftward movement because the left input is no longer being held.
-
-### Changing to a Perpendicular Direction
-
-Suppose the drone is moving right and the player presses forward.
-
-The right-left axis and the forward-backward axis are handled separately.
-
-The rightward speed begins moving toward zero while the forward speed begins increasing.
-
-This means the drone changes direction in a curve instead of stopping completely before moving forward.
-
-For example:
-
-```text
-Rightward velocity: decelerates toward 0
-Forward velocity: accelerates toward maximum forward speed
-```
-
-Both changes can happen at the same time.
-
-## Vertical Movement Patterns
-
-### Moving Up
-
-When the player presses up:
-
-```text
-Maximum upward speed: 10.0 m/s
-Upward acceleration: 3.5 m/s²
-```
-
-The drone accelerates upward until it reaches the maximum upward speed.
-
-### Moving Down
-
-When the player presses down:
-
-```text
-Maximum downward speed: 10.0 m/s
-Downward acceleration: 4.0 m/s²
-```
-
-The drone accelerates downward until it reaches the maximum downward speed.
-
-### Releasing Vertical Input
-
-When the player releases the vertical input:
-
-```text
-Target vertical speed: 0.0 m/s
-Vertical deceleration: 5.0 m/s²
-```
-
-The drone stops climbing or descending and then holds its altitude.
-
-### Reversing From Up to Down
-
-If the drone is moving upward and the player presses down:
-
-```text
-Remove upward speed at 5.0 m/s²
-Reach 0.0 m/s
-Accelerate downward at 4.0 m/s²
-```
-
-The drone does not instantly switch from moving up to moving down.
-
-It must first remove the upward velocity.
-
-### Reversing From Down to Up
-
-If the drone is moving downward and the player presses up:
-
-```text
-Remove downward speed at 5.0 m/s²
-Reach 0.0 m/s
-Accelerate upward at 3.5 m/s²
-```
-
-Again, the drone first stops its current movement before gaining speed in the new direction.
-
-## Summary of Behavior
-
-| Current State              | Input                           | Result                                             |
-| -------------------------- | ------------------------------- | -------------------------------------------------- |
-| Stopped                    | Direction pressed               | Accelerate in that direction                       |
-| Moving below maximum speed | Same direction held             | Continue accelerating                              |
-| At maximum speed           | Same direction held             | Maintain maximum speed                             |
-| Moving                     | Input released                  | Decelerate toward zero                             |
-| Moving                     | Opposite direction pressed      | Brake toward zero                                  |
-| Speed reaches zero         | Opposite direction still held   | Accelerate in the new direction                    |
-| Moving horizontally        | Perpendicular direction pressed | Decelerate on one axis and accelerate on the other |
-| Moving vertically          | Vertical input released         | Stop vertical movement and hold altitude           |
-
-## Main Rule
-
-Braking removes the current velocity.
-
-Acceleration creates velocity in the new direction.
-
-For a horizontal reversal:
-
-```text
-Brake at 7.0 m/s² until the speed reaches zero.
-Then accelerate at 4.5 m/s² in the new direction.
-```
-
-For released horizontal input:
-
-```text
-Decelerate at 5.5 m/s² until the speed reaches zero.
-```
-
-For vertical movement:
-
-```text
-Decelerate or brake at 5.0 m/s² until vertical speed reaches zero.
-Then use either 3.5 m/s² upward acceleration
-or 4.0 m/s² downward acceleration.
-```
+Braking is the fastest of the three because stopping matters more than reaching top speed quickly, and pressing the opposite key is a stronger signal of intent than just releasing - the drone should feel tight and controlled rather than loose. Horizontal axes (forward/back, left/right) are handled independently, so a diagonal input decelerates one axis while accelerating the other at the same time, giving a curved transition instead of a stop-then-go.
