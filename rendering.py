@@ -1,23 +1,32 @@
+#drawing helpers, used by every other module. Grouped as:
+#   - draw_dart: the directional shape used for both drone and interceptor
+#   - draw_trail: fading path line (drone/interceptor)
+#   - background, draw_ground_grid, draw_shadow, draw_altitude_line*: world backdrop
+#   - draw_text, _draw_hud_panel: shared 2D-overlay primitives
+#   - draw_hud, draw_goal_distance, draw_time_hud, draw_compass,
+#     draw_danger_overlay, draw_game_over_screen: HUD, built on those primitives
+
 import pygame
-import math 
+import math
 import sys
 from pygame.locals import *
 from OpenGL.GL import *
 from OpenGL.GLU import *
-from constants import depth, cube, ScreenW, ScreenH
+from constants import depth, cube, ScreenW, ScreenH, goal_radius
 import numpy as np
 
 _half = cube / 2
 _DART_BASE = [(-_half, -_half, -_half), (_half, -_half, -_half), (_half, _half, -_half), (-_half, _half, -_half)]
-_DART_TIP = (0, 0, _half * 2.2) 
-def _face_normal(v0, v1, v2):
+_DART_TIP = (0, 0, _half * 2.2)  # nose pokes out past the body so the shape reads as directional
+
+def _face_normal(v0, v1, v2): # outward normal of a triangle, for lighting
     a = np.subtract(v1, v0)
     b = np.subtract(v2, v0)
     n = np.cross(a, b)
     m = np.linalg.norm(n)
     return tuple(n / m) if m > 0 else (0, 0, 1)
 
-def draw_dart(color=(0.2, 0.6, 1.0)):
+def draw_dart(color=(0.2, 0.6, 1.0)): # lit body + black wireframe outline, pointed nose so rotation is visible
     b0, b1, b2, b3 = _DART_BASE
     tip = _DART_TIP
 
@@ -42,7 +51,7 @@ def draw_dart(color=(0.2, 0.6, 1.0)):
     glEnd()
     glEnable(GL_LIGHTING)
 
-def draw_trail(trail, color, alpha_scale=0.8):
+def draw_trail(trail, color, alpha_scale=0.8): # fading line strip through a deque of past positions
     glDisable(GL_LIGHTING)
     glEnable(GL_BLEND)
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
@@ -56,8 +65,8 @@ def draw_trail(trail, color, alpha_scale=0.8):
     glDisable(GL_BLEND)
     glEnable(GL_LIGHTING)
 
-def background(depth):
-    # sky 1 
+def background(depth): # sky (two panels) + ground quad, filling the arena's bounding faces
+    # sky 1
     glBegin(GL_QUADS)
     glColor3f(0.5, 0.7, 1.0)
     glVertex3f(0, 0, 0)
@@ -66,7 +75,7 @@ def background(depth):
     glVertex3f(0, depth, 0)
     glEnd()
 
-    # sky 2 
+    # sky 2
     glBegin(GL_QUADS)
     glColor3f(0.5, 0.8, 1.0)
     glVertex3f(depth, 0, 0)
@@ -84,7 +93,7 @@ def background(depth):
     glVertex3f(0, 0, depth)
     glEnd()
 
-def draw_text(x, y, text, color=(0, 0, 0), bold=False):
+def draw_text(x, y, text, color=(0, 0, 0), bold=False): # renders text to a texture, draws it as a 2D quad
     font = pygame.font.SysFont('monospace', 18, bold=bold)
     text_surface = font.render(text, True, color)
     text_data = pygame.image.tostring(text_surface, 'RGBA', True)
@@ -111,9 +120,8 @@ def draw_text(x, y, text, color=(0, 0, 0), bold=False):
     glEnable(GL_TEXTURE_2D)
     glEnable(GL_BLEND)
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-    # texturing defaults to GL_MODULATE, which multiplies the texture by
-    # whatever glColor was last left set by an earlier draw call - reset it
-    # to white so the text's own baked-in color actually shows through
+    # GL_MODULATE (the default) multiplies the texture by the last glColor -
+    # reset to white so the text's own baked-in color actually shows
     glColor4f(1, 1, 1, 1)
 
     glBegin(GL_QUADS)
@@ -133,7 +141,7 @@ def draw_text(x, y, text, color=(0, 0, 0), bold=False):
     glMatrixMode(GL_MODELVIEW)
     glPopMatrix()
 
-def draw_ground_grid(depth, spacing=5):
+def draw_ground_grid(depth, spacing=5): # wireframe grid over all three arena bounding faces
     glBegin(GL_LINES)
     glColor3f(0.3, 0.5, 0.3)  # darker green than background
     for i in range(0, depth + 1, spacing):
@@ -153,7 +161,7 @@ def draw_ground_grid(depth, spacing=5):
         glVertex3f(depth, i, depth)
     glEnd()
 
-def draw_shadow(position):
+def draw_shadow(position): # flat dark quad on the ground under the drone
     x, y, z = position
     glBegin(GL_QUADS)
     glColor3f(0.1, 0.3, 0.1)  # dark green
@@ -163,16 +171,14 @@ def draw_shadow(position):
     glVertex3f(x, 0.1, z + cube)
     glEnd()
 
-def draw_altitude_line(position):
+def draw_altitude_line(position): # red line from the drone straight down to the ground
     glBegin(GL_LINES)
     glColor3f(1, 0, 0)
     glVertex3f(position[0] + cube/2, position[1], position[2] + cube/2)
     glVertex3f(position[0] + cube/2, 0, position[2] + cube/2)
     glEnd()
 
-def draw_goal_altitude_line(position, color=(0, 1, 0), alpha=0.4):
-    # faint line from the goal's center straight down - a height reference,
-    # same idea as the drone's own altitude line
+def draw_goal_altitude_line(position, color=(0, 1, 0), alpha=0.4): # same idea, faint green, for the goal
     glDisable(GL_LIGHTING)
     glEnable(GL_BLEND)
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
@@ -185,7 +191,7 @@ def draw_goal_altitude_line(position, color=(0, 1, 0), alpha=0.4):
     glDisable(GL_BLEND)
     glEnable(GL_LIGHTING)
 
-def _draw_hud_panel(x, y, w, h, color=(0, 0, 0), alpha=0.55):
+def _draw_hud_panel(x, y, w, h, color=(0, 0, 0), alpha=0.55): # translucent backing plate so HUD text stays legible over anything
     glMatrixMode(GL_PROJECTION); glPushMatrix(); glLoadIdentity()
     glOrtho(0, ScreenW, 0, ScreenH, -1, 1)
     glMatrixMode(GL_MODELVIEW); glPushMatrix(); glLoadIdentity()
@@ -200,7 +206,7 @@ def _draw_hud_panel(x, y, w, h, color=(0, 0, 0), alpha=0.55):
     glMatrixMode(GL_PROJECTION); glPopMatrix()
     glMatrixMode(GL_MODELVIEW); glPopMatrix()
 
-def draw_hud(speed, altitude):
+def draw_hud(speed, altitude): # speed panel bottom-left, altitude panel bottom-right
     panel_w, panel_h = 200, 50
     margin = 24
     y = margin
@@ -212,14 +218,14 @@ def draw_hud(speed, altitude):
     _draw_hud_panel(x, y, panel_w, panel_h)
     draw_text(x + 16, y + 14, f"ALT   {altitude:5.1f}", color=(255, 255, 255), bold=True)
 
-def draw_game_over_screen(win):
+def draw_game_over_screen(win): # centered win/lose text + restart prompt
     if win:
         draw_text(300, 350, "YOU WIN")
     else:
         draw_text(300, 350, "GAME OVER")
     draw_text(300, 300, "Click to Restart")
 
-def draw_danger_overlay(intensity, color=(1, 0, 0)):
+def draw_danger_overlay(intensity, color=(1, 0, 0)): # fullscreen translucent flash (interceptor lock / warning zone)
     if intensity <= 0:
         return
     glMatrixMode(GL_PROJECTION); glPushMatrix(); glLoadIdentity()
@@ -236,19 +242,31 @@ def draw_danger_overlay(intensity, color=(1, 0, 0)):
     glMatrixMode(GL_PROJECTION); glPopMatrix()
     glMatrixMode(GL_MODELVIEW); glPopMatrix()
 
-def draw_goal_distance(distance):
-    # sits right below the compass dial, so heading + range read together
+def draw_goal_distance(distance): # HUD panel below the compass - distance to the goal's surface
     panel_w, panel_h = 180, 40
     x = ScreenW/2 - panel_w/2
     y = ScreenH - 155
 
     _draw_hud_panel(x, y, panel_w, panel_h)
-    draw_text(x + 16, y + 11, f"GOAL {distance:5.1f}m", color=(255, 255, 255), bold=True)
+    draw_text(x + 16, y + 11, f"GOAL {(distance - goal_radius):5.1f}m", color=(255, 255, 255), bold=True)
 
-def draw_compass(plane_pos, target_pos, view_yaw, color=(0,1,0)):
+def draw_time_hud(time_left, low_threshold=5.0): # HUD panel below draw_goal_distance - flashes red when low
+    panel_w, panel_h = 180, 40
+    x = ScreenW/2 - panel_w/2
+    y = ScreenH - 205
+
+    text_color = (255, 255, 255)
+    if time_left <= low_threshold:
+        flash = abs(math.sin(pygame.time.get_ticks() / 1000 * 6))
+        text_color = (255, 70, 70) if flash > 0.5 else (255, 255, 255)
+
+    _draw_hud_panel(x, y, panel_w, panel_h)
+    draw_text(x + 16, y + 11, f"TIME {time_left:5.1f}", color=text_color, bold=True)
+
+def draw_compass(plane_pos, target_pos, view_yaw, color=(0,1,0)): # needle pointing at the goal, relative to view_yaw
     dx, dz = target_pos[0]-plane_pos[0], target_pos[2]-plane_pos[2]
     target_bearing = math.atan2(dx, dz)
-    rel = target_bearing - view_yaw 
+    rel = target_bearing - view_yaw
 
     cx, cy, r = ScreenW/2, ScreenH-70, 28
     dirx, diry = -math.sin(rel), math.cos(rel)
